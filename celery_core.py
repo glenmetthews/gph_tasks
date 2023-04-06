@@ -1,5 +1,5 @@
 from celery import Celery
-
+import redis
 
 app = Celery('gph_tasks',
              broker='redis://127.0.0.1',
@@ -13,15 +13,19 @@ app.conf.update(
 
 
 app.conf.beat_schedule = {
-    'run-me-every-ten-seconds': {
-        'task': 'lora_common.tasks.check',
-        'schedule': 10.0
+    'update_service_data': {
+        'task': 'lora_common.tasks.update_service_info',
+        'schedule': 300
     },
-    'run-me-every-20-seconds': {
-            'task': 'lora_common.tasks.check',
-            'schedule': 20.0
-        },
+
 }
+
+redis_db = redis.StrictRedis(
+    host='127.0.0.1',
+    port=6379,
+    charset="utf-8",
+    decode_responses=True
+)
 
 if __name__ == '__main__':
     args = ['worker', '--loglevel=INFO', '--beat']

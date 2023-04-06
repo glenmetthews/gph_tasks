@@ -4,6 +4,8 @@ import psycopg2
 from pydantic import PostgresDsn
 from lora_common.config import DBSettings
 
+
+
 class LoraDB:
 
     def __init__(self, credentials: PostgresDsn):
@@ -40,12 +42,13 @@ class LoraDB:
         try:
             with psycopg2.connect(self.credentials) as conn:
                 with conn.cursor() as cursor:
-                    query = "SELECT * from rawdata WHERE type = 'CONF_UP' and deveui = %s and data LIKE E'\x02%%' ORDER BY time DESC LIMIT 1"
+                    query = "SELECT data, time from rawdata WHERE type = 'CONF_UP' and deveui = %s and data LIKE E'\x02%%' ORDER BY time DESC LIMIT 1"
                     cursor.execute(query, (device_id,))
-                    record = cursor.fetchone()[0]
+                    record = cursor.fetchone()
                     package_type, vcc, vcc_p,\
-                        unsent_messages, error_code, _, _, rs = struct.unpack("!bfbbbbbh", record[0:12])
+                        unsent_messages, error_code, _, _, rs = struct.unpack("!bfbbbbbh", record[0][0:12])
                     service_message = {
+                        'time': record[1],
                         'package_type': package_type,
                         'vcc': vcc,
                         'vcc_p': vcc_p,
@@ -58,24 +61,28 @@ class LoraDB:
         except Exception as e:
             print(e)
 
-    def update_service_data(self, device_id, last_package_time):
+    def update_service_data(self, device_id, last_package_time: str = 0):
+
         try:
             with psycopg2.connect(self.credentials) as conn:
                 with conn.cursor() as cursor:
-                    query = "SELECT * from rawdata WHERE type = 'CONF_UP' and deveui = %s and data LIKE E'\x02%%' ORDER BY time DESC LIMIT 1"
-                    cursor.execute(query, (device_id,))
-                    record = cursor.fetchone()[0]
-                    package_type, vcc, vcc_p, \
-                        unsent_messages, error_code, _, _, rs = struct.unpack("!bfbbbbbh", record[0:12])
-                    service_message = {
-                        'package_type': package_type,
-                        'vcc': vcc,
-                        'vcc_p': vcc_p,
-                        'unsent_messages': unsent_messages,
-                        'error_code': error_code,
-                        'rs': rs
-                    }
-                    return service_message
+                    query = "SELECT data, time from rawdata WHERE type = 'CONF_UP' and deveui = %s and data LIKE E'\x02%%' and time > %s ORDER BY time DESC LIMIT 5"
+                    cursor.execute(query, (device_id, int(last_package_time)))
+                    record = cursor.fetchone()
+                    if record is not None:
+                        package_type, vcc, vcc_p, \
+                            unsent_messages, error_code, _, _, rs = struct.unpack("!bfbbbbbh", record[0][0:12])
+                        service_message = {
+                            'time': record[1],
+                            'package_type': package_type,
+                            'vcc': vcc,
+                            'vcc_p': vcc_p,
+                            'unsent_messages': unsent_messages,
+                            'error_code': error_code,
+                            'rs': rs
+                        }
+
+                        return service_message
 
         except Exception as e:
             print(e)
@@ -85,5 +92,6 @@ if __name__ == '__main__':
     db_config = DBSettings()
     lora_db = LoraDB(credentials=db_config.pg_lora)
 
-    lora_db.update_service_data()
+    print(lora_db.update_service_data('0729331405303640'))
+
 
