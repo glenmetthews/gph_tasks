@@ -15,8 +15,12 @@ app.conf.update(
 app.conf.beat_schedule = {
     'update_service_data': {
         'task': 'lora_common.tasks.update_service_info',
-        'schedule': 300
+        'schedule': 600
     },
+    'write_last_disp_data': {
+            'task': 'lora_common.tasks.update_disp_data',
+            'schedule': 600
+        },
 
 }
 
